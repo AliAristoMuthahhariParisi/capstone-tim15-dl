@@ -1,5 +1,7 @@
 {
-  "sumber": "https://… (tautan dataset dari kartu Kasus tim di Workbench)",
-  "berkas": ["data/latih.csv"],
-  "catatan": "Isi pada Sprint 0: versi/tanggal unduh, jumlah baris, dan perubahan (bila ada). Berkas data sendiri tidak di-commit."
+  "sumber": "https://github.com/sains-data/capstone-dl-2026-starter",
+  "berkas": [
+    "data/spektrogram_rekaman.npz"
+  ],
+  "catatan": "Dataset spektrogram magnitudo STFT 16 kHz kasus Tim 15 (Pembersihan ucapan dari bising mesin). 6 partisipan P01-P06, 10 kelas perintah ucapan, kondisi bising kipas [0, 255] dan pompa [0, 200]."
 }
