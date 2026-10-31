@@ -1,38 +1,49 @@
-"""Pemuat data kasus tim — MILIK TIM, dibekukan setelah Sprint 0 dengan persetujuan pembimbing.
+"""Pemuat data kasus Tim 15 (Pembersihan ucapan dari bising mesin).
 
-Isi oleh Penjaga Data & Evaluasi. Kontrak yang dipakai penilai dan baseline starter:
+Kasus: Pembersihan ucapan dari bising mesin (Ruang Cerdas 5 Volt).
+Pembimbing: Ardika Satria.
+Masukan: Spektrogram magnitudo STFT (16 kHz, 3 detik efektif, [N, 64, 94]).
+Target: 10 kelas kalimat perintah kendali alat meja uji (0..9).
 
-    TUGAS = "klasifikasi"  # atau "regresi"
-    muat() -> (X_train, y_train, X_val, y_val, X_test, y_test)
-
-- X berupa array NumPy (bentuk bebas: [N, fitur], [N, C, H, W], [N, langkah, fitur]);
-  y klasifikasi = label bulat 0..K-1, y regresi = float.
-- Split latih/validasi WAJIB memakai ``src.common.split`` (seed 2026) agar sama di semua laptop.
-- y_test boleh ``None`` bila dataset tidak punya bagian uji; bila ada, data uji hanya dievaluasi
-  sekali di sprint terakhir.
-- Berkas data dibaca dari ``data/`` dan dicantumkan di ``data/MANIFEST.json`` (sidik data).
-
-Contoh lengkap: ``contoh_fashion_mnist.py`` di folder ini.
+Pemisahan data:
+- Latih & Validasi: Partisipan P01 s.d. P05, dibagi dengan split beku (seed 2026, porsi validasi 10%).
+- Data Uji: Partisipan P06 sebagai hold-out test set (GroupKFold per partisipan/pembicara).
 """
 from __future__ import annotations
 
+from pathlib import Path
 import numpy as np
 
 from src.common import manifest, split
 
 TUGAS = "klasifikasi"
+BERKAS_DATA = manifest.AKAR / "data" / "spektrogram_rekaman.npz"
 
 
-def muat():
-    """Ganti isi fungsi ini dengan pemuat dataset kasus tim Anda."""
-    m = manifest.baca()
-    raise NotImplementedError(
-        f"Isi src/protokol/data.py untuk dataset {m.get('sumber', '?')} (lihat contoh_fashion_mnist.py)."
-    )
-    # --- pola yang lazim ---------------------------------------------------------------
-    # import pandas as pd
-    # df = pd.read_csv(manifest.AKAR / "data" / "latih.csv")
-    # X = df.drop(columns=["target"]).to_numpy(np.float32); y = df["target"].to_numpy()
-    # tr, va = split.indeks(len(X))               # atau split.indeks_urut(len(X)) untuk deret waktu
-    # uji = pd.read_csv(manifest.AKAR / "data" / "uji.csv")   # bila ada
-    # return X[tr], y[tr], X[va], y[va], X_uji, y_uji
+def muat() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Kembalikan (X_train, y_train, X_val, y_val, X_test, y_test)."""
+    if not BERKAS_DATA.exists():
+        raise FileNotFoundError(
+            f"Berkas dataset {BERKAS_DATA} tidak ditemukan di data/. "
+            "Pastikan berkas spektrogram sudah ada dan terdaftar di MANIFEST.json."
+        )
+
+    arsip = np.load(BERKAS_DATA)
+    X = arsip["X"].astype(np.float32)
+    y = arsip["y"].astype(np.int64)
+    partisipan = arsip["partisipan"]
+
+    # Pemisahan data uji per partisipan (P06 sebagai data uji independen)
+    mask_uji = (partisipan == "P06")
+    mask_dev = ~mask_uji
+
+    X_dev, y_dev = X[mask_dev], y[mask_dev]
+    X_test, y_test = X[mask_uji], y[mask_uji]
+
+    # Split latih dan validasi menggunakan split beku seed 2026
+    idx_latih, idx_val = split.indeks(len(X_dev), porsi_val=0.1, seed=2026)
+
+    X_train, y_train = X_dev[idx_latih], y_dev[idx_latih]
+    X_val, y_val = X_dev[idx_val], y_dev[idx_val]
+
+    return X_train, y_train, X_val, y_val, X_test, y_test
