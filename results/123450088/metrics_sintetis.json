@@ -1,0 +1,15 @@
+{
+  "metrik": {
+    "acc": 0.3,
+    "macro_f1": 0.234921
+  },
+  "seed": 1,
+  "data_hash": "185686519337c838dd403ea143fc1a00",
+  "durasi_detik": 18.1,
+  "perangkat": "cpu laptop",
+  "model": "rnn",
+  "n_val": 40,
+  "n_test": 0,
+  "sumber_data": "jadwal simulasi: tim-15-2026-11-12",
+  "catatan": "metrik dari data sintetis; berkas data/MANIFEST belum tersedia di mesin ini"
+}
