@@ -1,0 +1,63 @@
+# Rencana eksperimen tim 15: Pembersihan ucapan dari bising mesin
+# Versi final, diajukan untuk persetujuan pembimbing.
+# Dasar: rencana awal dari pengelola meja + keterangan tim 15 (tim-15.md).
+# Perubahan dari versi awal: hanya teks instruksi layar, ditulis kapital
+# (UCAPKAN: ...) supaya sama persis dengan lembar protokol bagian 4.2.
+# Taraf faktor, seed, ulangan, dan jumlah kondisi tidak diubah.
+tim: 15
+judul: Pembersihan ucapan dari bising mesin
+pembimbing: Ardika Satria
+pilar: Suara
+seed: 1015
+ulangan: 1
+ulangan_blok: 1
+durasi_kondisi_detik: 4
+jeda_detik: 0.5
+rekam:
+  audio:
+    aktif: true
+    sample_rate: 16000
+  kamera:
+    aktif: false
+faktor:
+  partisipan:
+    jenis: manual
+    taraf:
+    - P01
+    - P02
+    - P03
+    - P04
+    - P05
+    - P06
+    instruksi: Partisipan {taraf} siap di posisi (formulir persetujuan sudah ditandatangani)
+  kalimat:
+    jenis: isyarat
+    taraf:
+    - nyalakan kipas sekarang
+    - matikan lampu meja
+    - pompa berhenti
+    - kipas lebih pelan
+    - lampu lebih terang
+    - semua alat mati
+    - nyalakan pompa sebentar
+    - kipas paling kencang
+    - batalkan perintah tadi
+    - meja siap dipakai
+    instruksi: 'UCAPKAN: {taraf}'
+  kipas:
+  - 0
+  - 255
+  pompa:
+  - 0
+  - 200
+metode:
+  jenis_tugas: Pembersihan ucapan (denoising)
+  masukan_model: Spektrogram magnitudo, 4 s
+  metrik_utama: Peningkatan SI-SDR + akurasi perintah
+  jalur:
+  - CNN
+  - RNN
+  - Transformer
+  - AE
+  pembanding_non_dl: Spectral subtraction / filter Wiener
+  catatan_metode: AE (U-Net kecil) jalur utama; CNN/RNN/Transformer menaksir masker spektrogram

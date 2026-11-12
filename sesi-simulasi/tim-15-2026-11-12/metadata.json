@@ -1,0 +1,16 @@
+{
+  "tim": 15,
+  "judul": "Pembersihan ucapan dari bising mesin",
+  "seed": 1015,
+  "total_kondisi": 240,
+  "kondisi_per_blok": 40,
+  "jumlah_blok": 6,
+  "durasi_kondisi_detik": 4.0,
+  "jeda_detik": 0.5,
+  "ganti_blok_detik": 60,
+  "estimasi_total_menit": 24.0,
+  "pompa_menyala_menit": 8.0,
+  "kipas_menyala_menit": 8.0,
+  "tanggal_gladi": "2026-11-12",
+  "sumber": "rekonstruksi aturan dokumen (bukan keluaran meja.py); tanpa audio, tanpa label.csv"
+}
