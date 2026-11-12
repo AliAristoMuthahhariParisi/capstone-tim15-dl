@@ -1,35 +1,20 @@
-# Catatan Pengembangan Model — Lisa Diani Amelia (122450021)
+# Catatan Desain Model — Transfer Learning (`122450021`)
 
-## Identitas & Peran
-- **Nama:** Lisa Diani Amelia
-- **NIM:** 122450021
-- **Peran & Fokus Model:** Transfer Learning — Memanfaatkan bobot model *pre-trained* untuk menaksir pola masker bising secara spasial pada gambar spektrogram agar ekstraksi fitur lebih efisien.
-- **Peran Tambahan:** Integrator Repositori Tim (Kartu #6)
-- **Kartu Terkait:** #6, #7, #17, #18
+- **Pemilik:** Lisa Diani Amelia (`122450021`)
+- **Jalur Metode:** Transfer Learning (TL) — Adaptasi model pralatih (*MobileNetV2*) pada masukan spektrogram magnitudo 4 detik.
 
+## 1. Alasan Desain Arsitektur
+- **Backbone Pralatih (MobileNetV2):** Dipilih karena efisien dalam mengekstrak pola tekstur spasial 2D (frekuensi $\times$ waktu) pada spektrogram magnitudo 4 detik dengan jumlah parameter yang ringan untuk ukuran dataset eksperimen tim.
+- **Strategi Pembekuan (*Partial Freeze*):** Lapisan konvolusi awal dibekukan untuk mempertahankan ekstraktor fitur spasial dasar, sementara blok konvolusi akhir dan *linear head* diadaptasi guna menangkap pola masker bising dan struktur sinyal target.
+- **Kesesuaian Masukan & Keluaran:** Input spektrogram 4 detik dikonversi ke representasi 3 kanal dan di-interpolasi ke resolusi spasial standar backbone, sementara dimensi keluaran menyesuaikan bentuk target (`y_val`/`y_test`) secara otomatis.
 
-## Strategi & Rancangan Arsitektur
+## 2. Optimizer & Regularisasi
+- **Optimizer:** `AdamW` ($lr = 10^{-3}$, `weight_decay` $= 10^{-4}$) untuk menjaga stabilitas pembaruan bobot saat proses *fine-tuning*.
+- **Regularisasi:** Menggunakan *Dropout* ($p = 0.2$) sebelum lapisan proyeksi akhir serta *weight decay* pada `AdamW` untuk mencegah *overfitting* pada penutur latih.
 
-1. **Representasi Input (Spektrogram Spasial):**
-   - Mengubah sinyal/fitur akustik menjadi representasi gambar spektrogram 2D (frekuensi $\times$ waktu) dan menyesuaikannya ke format 3 kanal (RGB/replikasi kanal) serta ukuran input standar model *pre-trained* (misalnya $224 \times 224$ piksel).
-2. **Ekstraksi Fitur *Pre-trained* (Backbone):**
-   - Memanfaatkan bobot arsitektur CNN ringan yang sudah dilatih sebelumnya (seperti **MobileNetV2** atau **ResNet18**) dengan membekukan (*freeze*) lapisan awal *feature extractor*.
-   - Lapisan konvolusi *pre-trained* bertugas menangkap pola tekstur dan struktur spasial lokal pada spektrogram untuk memisahkan pola sinyal ucapan utama dari pola derau/masker bising latar belakang (seperti kipas/pompa).
-3. **Klasifikasi Akhir (*Classifier Head*):**
-   - Menambahkan lapisan *Global Average Pooling* dan *Linear/Dense Classifier* untuk memetakan representasi fitur spasial ke kelas kalimat target.
+## 3. Hyperparameter & Ablation Study
+- **Status:** *Menunggu data primer (12 Nov)*. Eksperimen perbandingan rasio *freeze* lapisan, ukuran resolusi input spektrogram, dan *learning rate* akan dilakukan setelah data meja primer tersedia.
 
-
-## Log Kemajuan & Eksperimen
-
-### 1. Tahap Kerangka & Uji Integrasi Simulasi (Sprint 1 — 12 November 2026)
-- **Status:** Siap Uji Integrasi (`run_all.py`)
-- **Sumber Data:** Data simulasi 240 kondisi (`sesi-simulasi/tim-15-2026-11-12/jadwal.csv`) melalui `src/protokol/data.py`.
-- **Implementasi Saat Ini (`run.py`):**
-  - Menyiapkan *pipeline* ekstraksi fitur *pre-trained* (MobileNetV2) untuk spektrogram dengan mekanisme *fallback* aman jika dependensi *deep learning* belum terpasang di lingkungan uji.
-  - Memastikan proses berjalan tuntas tanpa galat saat dipanggil oleh `run_all.py`.
-  - Menyimpan metrik simulasi ke `results/122450021/metrics_sintetis.json` (tidak di-*commit* ke `metrics.json` sesuai aturan tim).
-
-### 2. Rencana Iterasi Berikutnya (Data Riil & Fine-Tuning)
-- Melatih *classifier head* dan melakukan *fine-tuning* sebagian blok konvolusi atas pada dataset riil (`data/label.csv`).
-- Membandingkan efisiensi waktu inferensi dan performa (*Accuracy* serta *F1-Macro*) antara model *frozen backbone* vs *partial fine-tuning* terhadap baseline tim.
-- Menyimpan hasil evaluasi resmi ke `results/122450021/metrics.json`.
+## 4. Catatan Pengujian Simulasi
+- Skrip `python models/122450021/run.py --seed 1` telah diuji menggunakan data simulasi melalui `src.protokol.data.muat()` (pemisahan per penutur) dan dievaluasi lewat `src.common.evaluate`.
+- **Catatan Penting:** Hasil pada `metrics_sintetis.json` merupakan validasi alur eksekusi data simulasi semata dan **bukan** capaian performa akhir model.

@@ -1,12 +1,11 @@
 import argparse
-import json
+import inspect
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
 import numpy as np
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, f1_score
-from sklearn.model_selection import train_test_split
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 if str(BASE_DIR) not in sys.path:
@@ -15,36 +14,16 @@ if str(BASE_DIR) not in sys.path:
 from src.protokol import data as protokol_data
 
 NIM = "122450021"
-JADWAL_DEFAULT = BASE_DIR / "sesi-simulasi" / "tim-15-2026-11-12" / "jadwal.csv"
 RESULTS_DIR = BASE_DIR / "results" / NIM
 
 
-def muat_dataset(mode: str, jadwal_path: Path):
-    """Memuat pasangan spektrogram/fitur (X) dan label kalimat (y) dari modul protokol."""
-    if mode == "simulasi":
-        if not jadwal_path.exists():
-            raise FileNotFoundError(f"Berkas jadwal simulasi tidak ditemukan: {jadwal_path}")
-        if hasattr(protokol_data, "muat_simulasi"):
-            return protokol_data.muat_simulasi(jadwal_path)
-        if hasattr(protokol_data, "load_simulasi"):
-            return protokol_data.load_simulasi(jadwal_path)
-        if hasattr(protokol_data, "load_data"):
-            return protokol_data.load_data(jadwal_path=jadwal_path, mode="simulasi")
-        raise AttributeError("Fungsi pemuat simulasi belum tersedia di src/protokol/data.py.")
-    else:
-        if hasattr(protokol_data, "load_data"):
-            return protokol_data.load_data(mode="riil")
-        raise NotImplementedError("Pemuat data riil belum diimplementasikan.")
-
-
-def siapkan_spektrogram_3kanal(X: np.ndarray) -> np.ndarray:
+def format_spektrogram_3kanal(X: np.ndarray) -> np.ndarray:
     """
-    Memastikan input spektrogram berbentuk 4D (N, 3, H, W) agar siap diproses
-    oleh backbone pre-trained CNN untuk ekstraksi pola spasial masker bising.
+    Mengubah spektrogram magnitudo 4 detik ke format 4D (N, 3, H, W)
+    agar kompatibel dengan backbone CNN pralatih (3 kanal RGB).
     """
     X = np.asarray(X, dtype=np.float32)
     if X.ndim == 2:
-        # Jika input masih vektor 1D per sampel, bentuk ulang ke matriks 2D mendekati persegi
         n, f = X.shape
         sisi = int(np.ceil(np.sqrt(f)))
         pad = sisi * sisi - f
@@ -53,97 +32,193 @@ def siapkan_spektrogram_3kanal(X: np.ndarray) -> np.ndarray:
         X = X.reshape(n, sisi, sisi)
 
     if X.ndim == 3:
-        # Replikasi 1 kanal spektrogram menjadi 3 kanal (N, 3, H, W)
+        # (N, F, T) -> (N, 3, F, T)
         X = np.repeat(X[:, np.newaxis, :, :], 3, axis=1)
-    elif X.ndim == 4 and X.shape[-1] in (1, 3):
-        # Ubah (N, H, W, C) menjadi (N, C, H, W)
-        X = np.transpose(X, (0, 3, 1, 2))
+    elif X.ndim == 4:
+        if X.shape[-1] in (1, 3) and X.shape[1] not in (1, 3):
+            X = np.transpose(X, (0, 3, 1, 2))
         if X.shape[1] == 1:
             X = np.repeat(X, 3, axis=1)
-
     return X
 
 
-def ekstrak_fitur_pretrained(X: np.ndarray) -> np.ndarray:
+def latih_dan_prediksi_tl(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_eval: np.ndarray,
+    epochs: int,
+    seed: int,
+) -> np.ndarray:
     """
-    Mengekstrak representasi spasial spektrogram menggunakan bobot MobileNetV2 pre-trained.
+    Adaptasi model pralatih (MobileNetV2) untuk menaksir pola spasial spektrogram magnitudo 4s.
+    Impor torch dilakukan di dalam fungsi mengikuti konvensi starter tim.
     """
-    X_spec = siapkan_spektrogram_3kanal(X)
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from torch.utils.data import DataLoader, TensorDataset
+    from torchvision.models import MobileNet_V2_Weights, mobilenet_v2
 
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    X_tr_3c = format_spektrogram_3kanal(X_train)
+    X_ev_3c = format_spektrogram_3kanal(X_eval)
+
+    # Deteksi jenis tugas otomatis berdasarkan bentuk target y_train
+    y_train_arr = np.asarray(y_train)
+    is_klasifikasi = y_train_arr.ndim == 1 and np.issubdtype(y_train_arr.dtype, np.integer)
+
+    if is_klasifikasi:
+        kelas_unik = np.unique(y_train_arr)
+        num_classes = int(kelas_unik.max()) + 1
+        y_tr_tensor = torch.tensor(y_train_arr, dtype=torch.long)
+    else:
+        target_shape = y_train_arr.shape[1:]
+        out_dim = int(np.prod(target_shape))
+        y_tr_tensor = torch.tensor(y_train_arr.reshape(len(y_train_arr), -1), dtype=torch.float32)
+
+    # Muat bobot pralatih MobileNetV2 (fallback ke weights=None jika offline tanpa cache)
     try:
-        import torch
-        import torch.nn.functional as F
-        from torchvision.models import MobileNet_V2_Weights, mobilenet_v2
+        backbone = mobilenet_v2(weights=MobileNet_V2_Weights.DEFAULT).features
+    except Exception:
+        backbone = mobilenet_v2(weights=None).features
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        weights = MobileNet_V2_Weights.DEFAULT
-        backbone = mobilenet_v2(weights=weights).features.to(device)
-        backbone.eval()
+    # Bekukan blok awal agar ekstraksi fitur spasial efisien dan tidak overfitting
+    for param in list(backbone.parameters())[:-15]:
+        param.requires_grad = False
 
-        fitur_list = []
-        batch_size = 32
-        with torch.no_grad():
-            for i in range(0, len(X_spec), batch_size):
-                batch = torch.tensor(X_spec[i : i + batch_size], device=device)
-                # Resize spasial spektrogram ke resolusi standar MobileNetV2
-                batch_resized = F.interpolate(batch, size=(128, 128), mode="bilinear", align_corners=False)
-                # Normalisasi per-sampel
-                mean = batch_resized.mean(dim=(2, 3), keepdim=True)
-                std = batch_resized.std(dim=(2, 3), keepdim=True) + 1e-6
-                batch_norm = (batch_resized - mean) / std
+    in_features = 1280
+    head = nn.Sequential(
+        nn.Dropout(p=0.2),
+        nn.Linear(in_features, num_classes if is_klasifikasi else out_dim),
+    )
 
-                feat_map = backbone(batch_norm)
-                # Global Average Pooling untuk merangkum pola spasial masker bising
-                pooled = feat_map.mean(dim=(2, 3))
-                fitur_list.append(pooled.cpu().numpy())
+    backbone = backbone.to(device)
+    head = head.to(device)
 
-        return np.vstack(fitur_list)
+    optimizer = torch.optim.AdamW(
+        list(filter(lambda p: p.requires_grad, backbone.parameters())) + list(head.parameters()),
+        lr=1e-3,
+        weight_decay=1e-4,
+    )
+    criterion = nn.CrossEntropyLoss() if is_klasifikasi else nn.MSELoss()
 
-    except Exception as e:
-        print(f"[{NIM}] Peringatan PyTorch/Weights ({e}), menggunakan fallback perataan spasial.")
-        return X_spec.reshape(len(X_spec), -1)
+    train_loader = DataLoader(
+        TensorDataset(torch.tensor(X_tr_3c), y_tr_tensor),
+        batch_size=16,
+        shuffle=True,
+    )
+
+    # Tahap Pelatihan / Adaptasi
+    backbone.train()
+    head.train()
+    for _ in range(max(1, epochs)):
+        for bx, by in train_loader:
+            bx, by = bx.to(device), by.to(device)
+            # Resize spasial spektrogram magnitudo 4s ke resolusi kompatibel backbone
+            bx_res = F.interpolate(bx, size=(128, 128), mode="bilinear", align_corners=False)
+            feat = backbone(bx_res).mean(dim=(2, 3))
+            logits = head(feat)
+            loss = criterion(logits, by)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+    # Tahap Inferensi Evaluasi
+    backbone.eval()
+    head.eval()
+    preds = []
+    eval_loader = DataLoader(TensorDataset(torch.tensor(X_ev_3c)), batch_size=32, shuffle=False)
+    with torch.no_grad():
+        for (bx,) in eval_loader:
+            bx = bx.to(device)
+            bx_res = F.interpolate(bx, size=(128, 128), mode="bilinear", align_corners=False)
+            feat = backbone(bx_res).mean(dim=(2, 3))
+            out = head(feat)
+            if is_klasifikasi:
+                preds.append(out.argmax(dim=1).cpu().numpy())
+            else:
+                preds.append(out.view(len(bx), *target_shape).cpu().numpy())
+
+    return np.concatenate(preds, axis=0)
+
+
+def muat_data_protokol(final: bool):
+    """Memanggil src.protokol.data.muat() sesuai tanda tangan fungsi yang tersedia."""
+    sig = inspect.signature(protokol_data.muat)
+    if "final" in sig.parameters:
+        return protokol_data.muat(final=final)
+    return protokol_data.muat()
+
+
+def jalankan_evaluasi_cli(pred_path: Path, y_true_path: Path):
+    """Memanggil src.common.evaluate lewat subprocess menyesuaikan argumen CLI yang tersedia."""
+    help_out = subprocess.run(
+        [sys.executable, "-m", "src.common.evaluate", "--help"],
+        cwd=str(BASE_DIR),
+        capture_output=True,
+        text=True,
+    ).stdout
+
+    cmd = [sys.executable, "-m", "src.common.evaluate"]
+    if "--nim" in help_out:
+        cmd.extend(["--nim", NIM])
+    if "--pred" in help_out:
+        cmd.extend(["--pred", str(pred_path)])
+    if "--true" in help_out:
+        cmd.extend(["--true", str(y_true_path)])
+    elif "--y-true" in help_out:
+        cmd.extend(["--y-true", str(y_true_path)])
+
+    subprocess.run(cmd, cwd=str(BASE_DIR), check=True)
 
 
 def main():
-    parser = argparse.ArgumentParser(description=f"Transfer Learning Spektrogram - NIM {NIM}")
-    parser.add_argument("--mode", choices=["simulasi", "riil"], default="simulasi")
-    parser.add_argument("--jadwal", type=Path, default=JADWAL_DEFAULT)
+    parser = argparse.ArgumentParser(description=f"[TL] Transfer Learning Spektrogram 4s - NIM {NIM}")
+    parser.add_argument("--seed", type=int, default=1, help="Seed acak untuk reproduksibilitas")
+    parser.add_argument("--epochs", type=int, default=5, help="Jumlah epoch adaptasi model")
+    parser.add_argument("--final", action="store_true", help="Gunakan split pengujian final")
     args = parser.parse_args()
 
-    print(f"[{NIM}] Memuat data spektrogram (mode: {args.mode})...")
-    X, y = muat_dataset(args.mode, args.jadwal)
+    print(f"[{NIM}] Memuat dataset lewat src.protokol.data.muat() (seed={args.seed}, final={args.final})...")
+    data = muat_data_protokol(final=args.final)
 
-    print(f"[{NIM}] Mengekstrak fitur spasial menggunakan backbone pre-trained...")
-    X_fitur = ekstrak_fitur_pretrained(X)
+    if isinstance(data, dict):
+        X_train, y_train = data["X_train"], data["y_train"]
+        X_eval = data["X_test"] if (args.final and "X_test" in data) else data["X_val"]
+        y_eval = data["y_test"] if (args.final and "y_test" in data) else data["y_val"]
+        is_simulasi = bool(data.get("is_simulasi", not args.final))
+    else:
+        X_train, y_train, X_eval, y_eval = data[0], data[1], data[2], data[3]
+        is_simulasi = not args.final
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_fitur, y, test_size=0.2, random_state=42, stratify=y
+    print(f"[{NIM}] Bentuk masukan spektrogram 4s: train={np.shape(X_train)}, eval={np.shape(X_eval)}")
+    y_pred = latih_dan_prediksi_tl(
+        X_train=X_train,
+        y_train=y_train,
+        X_eval=X_eval,
+        epochs=args.epochs,
+        seed=args.seed,
     )
-
-    clf = LogisticRegression(max_iter=1000, random_state=42)
-    clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
-
-    acc = float(accuracy_score(y_test, y_pred))
-    f1 = float(f1_score(y_test, y_pred, average="macro", zero_division=0))
-
-    hasil = {
-        "nim": NIM,
-        "pendekatan": "Transfer Learning (MobileNetV2 Pre-trained Feature Extractor)",
-        "mode": args.mode,
-        "jumlah_sampel": int(len(y)),
-        "dimensi_fitur_spasial": int(X_fitur.shape[1]),
-        "accuracy": round(acc, 4),
-        "f1_macro": round(f1, 4),
-    }
+    print(f"[{NIM}] Bentuk keluaran prediksi: {y_pred.shape} (target: {np.shape(y_eval)})")
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    output_file = RESULTS_DIR / ("metrics_sintetis.json" if args.mode == "simulasi" else "metrics.json")
+    pred_path = RESULTS_DIR / "pred_val.npy"
+    y_true_path = RESULTS_DIR / "y_val.npy"
+    np.save(pred_path, y_pred)
+    np.save(y_true_path, y_eval)
 
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(hasil, f, indent=2)
+    jalankan_evaluasi_cli(pred_path, y_true_path)
 
-    print(f"[{NIM}] Selesai! Accuracy: {hasil['accuracy']} | F1-Macro: {hasil['f1_macro']}")
+    # Aturan tim: metrik simulasi masuk ke metrics_sintetis.json, bukan metrics.json
+    metrics_json = RESULTS_DIR / "metrics.json"
+    metrics_sintetis = RESULTS_DIR / "metrics_sintetis.json"
+    if is_simulasi and metrics_json.exists():
+        shutil.move(str(metrics_json), str(metrics_sintetis))
+        print(f"[{NIM}] Metrik simulasi disimpan ke {metrics_sintetis.relative_to(BASE_DIR)}")
 
 
 if __name__ == "__main__":
