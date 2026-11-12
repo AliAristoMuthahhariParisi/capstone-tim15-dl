@@ -1,11 +1,11 @@
 {
   "metrik": {
-    "acc": 0.3,
-    "macro_f1": 0.234921
+    "acc": 0.7,
+    "macro_f1": 0.661378
   },
   "seed": 1,
   "data_hash": "185686519337c838dd403ea143fc1a00",
-  "durasi_detik": 18.1,
+  "durasi_detik": 11.5,
   "perangkat": "cpu laptop",
   "model": "rnn",
   "n_val": 40,

@@ -20,7 +20,7 @@
 *(Akan diisi setelah data primer: (a) tanpa kepala masker vs dengan kepala masker, (b) LSTM vs GRU pada jumlah parameter setara)*
 
 ## Hasil pada data simulasi
-Uji kerangka `seed=1`, 12 epoch, data jadwal gladi: `val_acc 0.30`, `macro_f1 0.235`, tersimpan di `results/123450088/metrics_sintetis.json`. Angka ini **verifikasi pipeline**, bukan capaian — data masih sintetis.
+Uji kerangka `seed=1`, 30 epoch, data jadwal gladi: `val_acc 0.70`, `macro_f1 0.661`, tersimpan di `results/123450088/metrics_sintetis.json`. Angka ini **verifikasi pipeline**, bukan capaian — data masih sintetis.
 
 ## Catatan teknis
 - `src.common.evaluate` memerlukan `data/spektrogram_rekaman.npz` (tercantum di `data/MANIFEST.json`) untuk menghitung `data_hash`. Berkas itu tidak ada di mesin pengembangan, sehingga `run.py` menulis metrik cadangan ke `metrics_sintetis.json` dan mencetak penyebabnya.
