@@ -67,37 +67,37 @@ Untuk menguji apakah terdapat pergeseran waktu (*temporal misalignment*) antara 
 
 ## 4. Log Catatan Operator Sesi dan Kebijakan Penanganan Data
 
-Berdasarkan lembar observasi operator meja laboratorium (`CATATAN SESI - CATATAN SESI.pdf`), terdapat 19 kondisi yang terdokumentasi mengalami gangguan akustik eksternal atau anomali partisipan:
+Berdasarkan lembar observasi operator meja laboratorium (`CATATAN SESI - CATATAN SESI.pdf`), terdapat 19 kondisi yang terdokumentasi mengalami gangguan akustik eksternal atau anomali partisipan. Mayoritas gangguan (12 dari 19 kejadian) terjadi pada **Blok 4 (Kondisi 129 s.d. 158)** pada partisipan **P04**:
 
-| No. Kondisi | Partisipan | Kalimat Perintah | Catatan Gangguan Operator Meja | Status Data |
-| :---: | :---: | :--- | :--- | :--- |
-| **2** | P06 | kipas lebih pelan | **Tidak Ada Suara** (partisipan terlambat berbicara) | Dipertahankan (Anomali Uji) |
-| **14** | P06 | matikan lampu meja | Suara Langkah Kaki | Dipertahankan |
-| **19** | P06 | matikan lampu meja | Suara Batuk | Dipertahankan |
-| **23** | P06 | nyalakan kipas sekarang | Suara Pintu Terbuka | Dipertahankan |
-| **30** | P06 | matikan lampu meja | Suara Pintu Terbuka | Dipertahankan |
-| **33** | P06 | batalkan perintah tadi | Suara Langkah Kaki | Dipertahankan |
-| **34** | P06 | pompa berhenti | Suara Pintu Terbuka | Dipertahankan |
-| **38** | P06 | batalkan perintah tadi | Suara Batuk | Dipertahankan |
-| **40** | P06 | lampu lebih terang | Suara Langkah Kaki | Dipertahankan |
-| **43** | P05 | meja siap dipakai | Suara Pintu Terbuka | Dipertahankan |
-| **49** | P05 | pompa berhenti | Suara Langkah Kaki | Dipertahankan |
-| **50** | P05 | matikan lampu meja | Suara Bersin | Dipertahankan |
-| **60** | P05 | pompa berhenti | Suara Pintu Terbuka | Dipertahankan |
-| **61** | P05 | matikan lampu meja | Suara Alarm HP | Dipertahankan |
-| **71** | P05 | matikan lampu meja | Suara Pintu Terbuka | Dipertahankan |
-| **78** | P05 | meja siap dipakai | Suara Langkah Kaki | Dipertahankan |
-| **80** | P05 | matikan lampu meja | Suara Pintu Terbuka | Dipertahankan |
-| **81** | P04 | batalkan perintah tadi | Suara Langkah Kaki | Dipertahankan |
-| **98** | P04 | matikan lampu meja | Suara Batuk | Dipertahankan |
+| Blok | Partisipan | No. Kondisi | Kalimat Perintah | Catatan Gangguan Operator Meja | Status Data |
+| :---: | :---: | :---: | :--- | :--- | :--- |
+| **1** | P06 | **2** | kipas lebih pelan | **Tidak Ada Suara** (partisipan terlambat berbicara) | Dipertahankan |
+| **1** | P06 | **38** | meja siap dipakai | Suara Pintu | Dipertahankan |
+| **3** | P05 | **119** | nyalakan kipas sekarang | Suara Orang Berbicara | Dipertahankan |
+| **3** | P05 | **120** | nyalakan pompa sebentar | Suara Pintu | Dipertahankan |
+| **4** | P04 | **129** | meja siap dipakai | Suara Pintu | Dipertahankan |
+| **4** | P04 | **130** | pompa berhenti | Suara Pintu | Dipertahankan |
+| **4** | P04 | **131** | kipas lebih pelan | Suara Langkah Kaki | Dipertahankan |
+| **4** | P04 | **132** | nyalakan kipas sekarang | Suara Langkah Kaki | Dipertahankan |
+| **4** | P04 | **133** | nyalakan pompa sebentar | Suara Langkah Kaki | Dipertahankan |
+| **4** | P04 | **135** | kipas lebih pelan | Suara Gesekan Meja | Dipertahankan |
+| **4** | P04 | **138** | kipas paling kencang | Suara Gesekan Meja | Dipertahankan |
+| **4** | P04 | **140** | kipas paling kencang | Suara Alarm Handphone | Dipertahankan |
+| **4** | P04 | **141** | pompa berhenti | Suara Alarm Handphone | Dipertahankan |
+| **4** | P04 | **155** | matikan lampu meja | Suara Batuk | Dipertahankan |
+| **4** | P04 | **157** | batalkan perintah tadi | Suara Orang Berbicara | Dipertahankan |
+| **4** | P04 | **158** | kipas paling kencang | Suara Orang Berbicara | Dipertahankan |
+| **5** | P03 | **188** | matikan lampu meja | Suara Barang | Dipertahankan |
+| **6** | P01 | **201** | kipas paling kencang | Suara Gesekan Meja | Dipertahankan |
+| **6** | P01 | **236** | kipas paling kencang | Suara Barang | Dipertahankan |
 
 ### 4.1 Kebijakan Data yang Dikeluarkan vs Dipertahankan
 * **Kebijakan Seluruh Kondisi (240 Sampel):**
-  Seluruh 240 kondisi **tetap dipertahankan** dalam dataset utama (`label.csv`) dan modul pemuat `src.protokol.data.muat()`.
+  Sesuai kesepakatan tim, seluruh 240 kondisi **tetap dipertahankan** dalam dataset utama (`label.csv`) dan modul pemuat `src.protokol.data.muat()`.
 * **Alasan Kebijakan:**
-  1. Mempertahankan keseimbangan ukuran matriks data dan skema partisi penutur independen (*speaker-disjoint split*) yang telah disepakati seluruh anggota tim.
-  2. Kondisi gangguan ruang (langkah kaki, pintu terbuka, batuk) mencerminkan bising lingkungan akustik nyata (*real-world acoustic noise*) di luar bising mesin, yang menguji ketahanan model penapis ucapan (*speech denoising robustness*).
-  3. Khusus Kondisi No. 2 ("Tidak Ada Suara" pada partisipan P06), sampel ini berada pada **set uji (test set)**. Keberadaannya dicatat sebagai kasus uji batas (*corner case*) untuk memverifikasi apakah model mampu mengenali masukan hening tanpa menghasilkan prediksi perintah palsu (*false positive*).
+  1. **Integritas Pemisahan Data (*Data Split Integrity*):** Mempertahankan jumlah 240 kondisi (160 latih, 40 validasi, 40 uji) memastikan tidak ada baris yang hilang pada matriks pemodelan dan struktur partisi penutur independen (*speaker-disjoint split*) tetap terjaga konsisten di seluruh kode anggota tim (Lisa, Nayla, Ali, Lutfia).
+  2. **Representasi Derau Akustik Nyata:** Gangguan lingkungan seperti langkah kaki, pintu dibuka, alarm HP, dan gesekan meja mencerminkan kondisi akustik riil di lapangan (*real-world operational noise*) yang menguji ketahanan model penapis derau ucapan secara objektif.
+  3. **Transparansi Evaluasi:** Khusus Kondisi No. 2 ("Tidak Ada Suara"), sampel ini berada pada set evaluasi sehingga keberadaannya dapat ditinjau sebagai kasus batas (*corner case*) ketika tidak ada input vokal manusia.
 
 ---
 
