@@ -1,13 +1,9 @@
 {
-  "metrik": {
-    "val_acc": 1.0,
-    "val_macro_f1": 1.0
-  },
-  "seed": 2026,
-  "data_hash": "a78f98074dbbce18cc8c05d5cd77708b",
-  "perangkat": "cpu laptop",
-  "model": "baseline",
-  "n_val": 20,
-  "n_test": 0,
-  "durasi_detik": 0.2
+    "model": "Spectral Subtraction / Wiener Filter",
+    "metode": "non-DL baseline",
+    "status_data": "uji_P06_sesi-20261117-071715",
+    "metrics": {
+        "si_sdr_peningkatan": -32.3072,
+        "akurasi_perintah": 0.0
+    }
 }
