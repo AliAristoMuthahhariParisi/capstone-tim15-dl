@@ -124,7 +124,11 @@ def _folder_sesi() -> Path | None:
     env = os.environ.get("TIM15_SESI")
     if env and (Path(env) / "label.csv").exists():
         return Path(env)
+    if (AKAR / "data" / "label.csv").exists():
+        return AKAR / "data"
     for kandidat in sorted((AKAR / "data" / "sesi").glob("*/label.csv")):
+        return kandidat.parent
+    for kandidat in sorted(AKAR.glob("tim15_sesi-*/sesi-*/label.csv")):
         return kandidat.parent
     return None
 
@@ -132,16 +136,93 @@ def _folder_sesi() -> Path | None:
 def _dari_sesi(folder: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     import wave
 
-    label = list(csv.DictReader((folder / "label.csv").open(encoding="utf-8-sig")))
+    label_path = folder / "label.csv"
+    label = list(csv.DictReader(label_path.open(encoding="utf-8-sig")))
     if not label:
-        raise ValueError(f"{folder}/label.csv kosong")
+        raise ValueError(f"{label_path} kosong")
 
     kolom_kalimat = next((k for k in label[0] if "kalimat" in k.lower() or "kata" in k.lower()), None)
     if kolom_kalimat is None:
         raise ValueError("label.csv tidak memiliki kolom kalimat/kata")
     kolom_penutur = next((k for k in label[0] if "partisipan" in k.lower() or "penutur" in k.lower()), None)
 
-    audio = sorted((folder / "audio").glob("*.wav"))
+    # Lokasi folder audio
+    folder_audio = folder / "audio"
+    if not folder_audio.exists():
+        for kandidat in [
+            AKAR / "data" / "audio",
+            AKAR / "tim15_sesi-20261117-071715" / "sesi-20261117-071715" / "audio",
+            Path(os.environ.get("TIM15_AUDIO", "")),
+        ]:
+            if kandidat.exists():
+                folder_audio = kandidat
+                break
+
+    # Kasus 1: Menggunakan audio_index.csv (rekaman kontinu meja ber-chunk)
+    berkas_indeks = folder / "audio_index.csv"
+    if not berkas_indeks.exists():
+        berkas_indeks = AKAR / "data" / "audio_index.csv"
+
+    if berkas_indeks.exists() and folder_audio.exists():
+        daftar_audio = []
+        with berkas_indeks.open(encoding="utf-8-sig") as f:
+            for r in csv.DictReader(f):
+                daftar_audio.append({
+                    "berkas": r["berkas"],
+                    "t_mulai": float(r["t_mulai_host"]),
+                    "sr": int(r["sample_rate"]),
+                    "n": int(r["jumlah_sampel"]),
+                    "path": folder_audio / r["berkas"],
+                })
+
+        for a in daftar_audio:
+            a["t_selesai"] = a["t_mulai"] + a["n"] / a["sr"]
+            with wave.open(str(a["path"]), "rb") as w:
+                n_frames = a["n"]
+                raw = w.readframes(n_frames)
+                pcm = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+                if w.getnchannels() > 1:
+                    pcm = pcm.reshape(-1, w.getnchannels()).mean(axis=1)
+                a["audio_data"] = pcm
+
+        X, y, grup = [], [], []
+        for baris in label:
+            tm = float(baris.get("t_mulai_host", 0))
+            durasi = 4.0
+            ta = tm + durasi
+
+            potongan = []
+            for a in daftar_audio:
+                if a["t_selesai"] <= tm or a["t_mulai"] >= ta:
+                    continue
+                mulai_idx = max(0, int(round((tm - a["t_mulai"]) * a["sr"])))
+                akhir_idx = min(a["n"], int(round((ta - a["t_mulai"]) * a["sr"])))
+                potongan.append(a["audio_data"][mulai_idx:akhir_idx])
+
+            if potongan:
+                sinyal_48k = np.concatenate(potongan)
+            else:
+                sinyal_48k = np.zeros(int(round(durasi * 48000)), dtype=np.float32)
+
+            sinyal_16k = sinyal_48k[::3]
+            target_len = int(round(durasi * 16000))
+            if len(sinyal_16k) < target_len:
+                sinyal_16k = np.pad(sinyal_16k, (0, target_len - len(sinyal_16k)))
+            else:
+                sinyal_16k = sinyal_16k[:target_len]
+
+            jendela_3d = pemotong.potong(sinyal_16k, sr=16000, durasi_target=pemotong.DURASI_EFEKTIF_DETIK)
+            X.append(ciri(jendela_3d, sr=16000))
+
+            nama = str(baris[kolom_kalimat]).strip().lower()
+            y.append(KALIMAT.index(nama) if nama in KALIMAT else 0)
+            penutur = str(baris[kolom_penutur]).strip() if kolom_penutur else "P01"
+            grup.append(penutur)
+
+        return np.stack(X), np.asarray(y, np.int64), np.asarray(grup)
+
+    # Kasus 2: Berkas audio individual per baris (1 berkas wav per baris)
+    audio = sorted(folder_audio.glob("*.wav")) if folder_audio.exists() else []
     if len(audio) != len(label):
         raise ValueError(f"jumlah berkas audio ({len(audio)}) != jumlah baris label ({len(label)})")
 

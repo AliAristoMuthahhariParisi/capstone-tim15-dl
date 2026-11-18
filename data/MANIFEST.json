@@ -1,7 +1,13 @@
 {
-  "sumber": "https://github.com/sains-data/capstone-dl-2026-starter",
+  "sumber": "Sesi perekaman meja Tim 15 (sesi-20261117-071715)",
   "berkas": [
-    "data/spektrogram_rekaman.npz"
+    "data/aktuator.csv",
+    "data/audio_index.csv",
+    "data/daya.csv",
+    "data/digital.csv",
+    "data/imu.csv",
+    "data/label.csv",
+    "data/lingkungan.csv"
   ],
-  "catatan": "Dataset spektrogram magnitudo STFT 16 kHz kasus Tim 15 (Pembersihan ucapan dari bising mesin). 6 partisipan P01-P06, 10 kelas perintah ucapan, kondisi bising kipas [0, 255] dan pompa [0, 200]."
+  "catatan": "Dataset sesi meja 17 Nov 2026 (sesi-20261117-071715). 240 kondisi (6 partisipan P01-P06 x 10 kalimat x 4 kombinasi alat)."
 }
