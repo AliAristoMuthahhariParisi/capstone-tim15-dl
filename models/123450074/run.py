@@ -34,38 +34,38 @@ def bangun_cnn(n_kelas: int):
     class CNNMaskerSpektrogram(nn.Module):
         def __init__(self, jumlah_kelas: int) -> None:
             super().__init__()
-            # Blok penaksir masker time-frequency [B, 1, F_time, F_freq]
+            # Blok penaksir masker waktu-frekuensi residual
             self.penaksir_masker = nn.Sequential(
                 nn.Conv2d(1, 16, kernel_size=3, padding=1),
                 nn.BatchNorm2d(16),
                 nn.ReLU(inplace=True),
                 nn.Conv2d(16, 1, kernel_size=3, padding=1),
-                nn.Sigmoid(),
+                nn.Tanh(),
             )
-            # Blok ekstraksi ciri konvolusi 2D pada spektrogram termasker
+            # Blok ekstraksi ciri konvolusi 2D pada spektrogram
             self.fitur = nn.Sequential(
-                nn.Conv2d(1, 16, kernel_size=3, padding=1),
-                nn.BatchNorm2d(16),
-                nn.ReLU(inplace=True),
-                nn.MaxPool2d(kernel_size=2),
-                nn.Conv2d(16, 32, kernel_size=3, padding=1),
+                nn.Conv2d(1, 32, kernel_size=3, padding=1),
                 nn.BatchNorm2d(32),
                 nn.ReLU(inplace=True),
-                nn.MaxPool2d(kernel_size=2),
+                nn.Conv2d(32, 32, kernel_size=3, padding=1),
+                nn.BatchNorm2d(32),
+                nn.ReLU(inplace=True),
+                nn.MaxPool2d(2),
                 nn.Conv2d(32, 64, kernel_size=3, padding=1),
                 nn.BatchNorm2d(64),
                 nn.ReLU(inplace=True),
-                nn.AdaptiveAvgPool2d((1, 1)),
+                nn.MaxPool2d(2),
+                nn.AdaptiveAvgPool2d((2, 2)),
             )
             self.kepala = nn.Sequential(
                 nn.Flatten(),
                 nn.Dropout(p=0.3),
-                nn.Linear(64, jumlah_kelas),
+                nn.Linear(64 * 4, jumlah_kelas),
             )
 
         def forward(self, x: torch.Tensor) -> torch.Tensor:
             masker = self.penaksir_masker(x)
-            x_bersih = x * masker
+            x_bersih = x + masker
             ciri = self.fitur(x_bersih)
             return self.kepala(ciri)
 
@@ -75,8 +75,8 @@ def bangun_cnn(n_kelas: int):
 def latih_dan_prediksi(
     seed: int,
     final: bool,
-    epochs: int = 30,
-    batch_size: int = 32,
+    epochs: int = 20,
+    batch_size: int = 16,
     lr: float = 1e-3,
 ) -> tuple[np.ndarray, np.ndarray | None, str]:
     """Muat data protokol tim, latih CNN 2D, dan kembalikan prediksi val (dan test)."""
@@ -106,7 +106,7 @@ def latih_dan_prediksi(
     print(f"masukan     : latih {tuple(Xtr_t.shape)}, validasi {tuple(Xva_t.shape)}")
     print(f"model       : CNN 2D penaksir masker ({n_param:,} parameter, keluaran {n_kelas} kelas)")
 
-    opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-3)
     rugi_fn = nn.CrossEntropyLoss()
 
     rng = np.random.default_rng(seed)
@@ -123,7 +123,7 @@ def latih_dan_prediksi(
             opt.step()
             total_rugi += float(rugi.item()) * len(idx)
 
-        if ep == 1 or ep % 10 == 0 or ep == epochs:
+        if ep == 1 or ep % 5 == 0 or ep == epochs:
             model.eval()
             with torch.no_grad():
                 pred_ep = model(Xva_t).argmax(dim=1).numpy()
