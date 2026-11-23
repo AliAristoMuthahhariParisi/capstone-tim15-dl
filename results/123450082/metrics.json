@@ -1,0 +1,9 @@
+{
+    "model": "Autoencoder CNN (Sprint 1)",
+    "seed": 1,
+    "data_hash": "288d1dad9a827a418a79826a69f54389",
+    "metrics": {
+        "si_sdr_peningkatan_val": -0.7646,
+        "akurasi_perintah_val": 0.0
+    }
+}
