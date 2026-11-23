@@ -1,19 +1,15 @@
-"""Kerangka model jalur RNN (LSTM/GRU) — Tim 15, NIM 123450088.
-
-Kartu #13: `python models/123450088/run.py --seed 1` berjalan sampai akhir pada data simulasi.
+"""Model jalur RNN — Tim 15, NIM 123450088.
 
 Arsitektur:
     Jaringan berulang (LSTM) atas urutan 32 frame spektrogram, dengan kepala
-    penaksir masker per frame (mask time-frequency) dan klasifikasi 10 perintah.
+    penaksir masker per frame (time-frequency mask) dan klasifikasi 10 perintah.
 
 Pemakaian:
-    python models/123450088/run.py --seed 1 [--epochs 30] [--final]
+    python models/123450088/run.py --seed 1 [--epochs 60] [--final]
 """
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
 import os
 import subprocess
 import sys
@@ -31,7 +27,7 @@ JALUR = "rnn"
 
 
 def bangun_rnn(n_kelas: int):
-    """LSTM atas urutan frame + kepala masker time-frequency dan klasifikasi."""
+    """LSTM atas urutan frame, kepala masker time-frequency, lalu klasifikasi."""
     import torch
     import torch.nn as nn
 
@@ -39,7 +35,6 @@ def bangun_rnn(n_kelas: int):
         def __init__(self, jumlah_kelas: int) -> None:
             super().__init__()
             self.lstm = nn.LSTM(input_size=40, hidden_size=64, num_layers=1, batch_first=True)
-            # kepala masker: satu nilai per frame (time mask)
             self.masker = nn.Sequential(nn.Linear(64, 1), nn.Sigmoid())
             self.kepala = nn.Sequential(
                 nn.Dropout(p=0.3),
@@ -47,17 +42,14 @@ def bangun_rnn(n_kelas: int):
             )
 
         def forward(self, x):
-            # x: [B, frame, bin]
-            urut, _ = self.lstm(x)
-            bobot = self.masker(urut)              # [B, frame, 1]
-            urut_bersih = urut * bobot
-            ringkas = urut_bersih.mean(dim=1)      # [B, hidden]
-            return self.kepala(ringkas)
+            urut, _ = self.lstm(x)                 # [B, frame, hidden]
+            urut = urut * self.masker(urut)        # masker per frame
+            return self.kepala(urut.mean(dim=1))
 
     return RNNMaskerSpektrogram(n_kelas)
 
 
-def latih_dan_prediksi(seed: int, final: bool, epochs: int = 30, batch_size: int = 32, lr: float = 1e-3):
+def latih_dan_prediksi(seed: int, final: bool, epochs: int = 60, batch_size: int = 32, lr: float = 1e-3):
     import torch
     import torch.nn as nn
 
@@ -115,36 +107,10 @@ def latih_dan_prediksi(seed: int, final: bool, epochs: int = 30, batch_size: int
     return pred_val, pred_test, sumber
 
 
-def tulis_metrik_cadangan(out: Path, pred_val, y_val, seed: int, durasi: float, perangkat: str, sumber: str) -> None:
-    """Dipakai bila `src.common.evaluate` tidak bisa jalan (mis. berkas MANIFEST belum ada).
-
-    Menulis ke metrics_sintetis.json, bukan metrics.json, dan menandai sumber datanya.
-    """
-    from src.common.evaluate import metrik_klasifikasi
-
-    Xtr, _, Xva, yva, _, _ = data.muat()
-    sidik = hashlib.sha256(np.asarray(Xtr).tobytes() + np.asarray(Xva).tobytes()).hexdigest()[:32]
-    metrik = metrik_klasifikasi(np.asarray(yva), np.asarray(pred_val))
-    hasil = {
-        "metrik": {k: round(float(v), 6) for k, v in metrik.items()},
-        "seed": int(seed),
-        "data_hash": sidik,
-        "durasi_detik": round(durasi, 1),
-        "perangkat": perangkat,
-        "model": JALUR,
-        "n_val": int(len(yva)),
-        "n_test": 0,
-        "sumber_data": sumber,
-        "catatan": "metrik dari data sintetis; berkas data/MANIFEST belum tersedia di mesin ini",
-    }
-    out.write_text(json.dumps(hasil, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(json.dumps(hasil["metrik"]), "->", out)
-
-
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Kerangka jalur RNN Tim 15")
+    ap = argparse.ArgumentParser(description="Model jalur RNN Tim 15")
     ap.add_argument("--seed", type=int, required=True)
-    ap.add_argument("--epochs", type=int, default=30)
+    ap.add_argument("--epochs", type=int, default=60)
     ap.add_argument("--final", action="store_true", help="sprint terakhir: evaluasi data uji sekali")
     ap.add_argument("--perangkat", default="cpu laptop")
     a = ap.parse_args()
@@ -158,28 +124,32 @@ def main() -> None:
     np.save(out / "pred_val.npy", np.asarray(pred_val))
 
     perintah = [
-        sys.executable, "-m", "src.common.evaluate",
-        "--nim", NIM, "--model", JALUR, "--seed", str(a.seed),
-        "--pred-val", str(out / "pred_val.npy"),
-        "--durasi", f"{durasi:.1f}", "--perangkat", a.perangkat,
+        sys.executable,
+        "-m",
+        "src.common.evaluate",
+        "--nim",
+        NIM,
+        "--model",
+        JALUR,
+        "--seed",
+        str(a.seed),
+        "--pred-val",
+        str(out / "pred_val.npy"),
+        "--durasi",
+        f"{durasi:.1f}",
+        "--perangkat",
+        a.perangkat,
     ]
     if pred_test is not None:
         np.save(out / "pred_test.npy", np.asarray(pred_test))
         perintah += ["--pred-test", str(out / "pred_test.npy")]
 
-    # metrik pada data simulasi ditulis terpisah, tidak menimpa metrics.json resmi
+    # Metrik pada data simulasi ditulis terpisah agar tidak menimpa metrics.json resmi
     if "simulasi" in sumber.lower():
         perintah += ["--out", str(out / "metrics_sintetis.json")]
 
     env = {**os.environ, "PYTHONUTF8": "1"}
-    hasil = subprocess.run(perintah, cwd=AKAR, env=env, capture_output=True, text=True)
-    if hasil.returncode == 0:
-        print(hasil.stdout.strip())
-    else:
-        print("[catatan] src.common.evaluate gagal, memakai penulisan metrik cadangan.")
-        print("          penyebab:", (hasil.stderr or "").strip().splitlines()[-1])
-        _, _, _, yva, _, _ = data.muat()
-        tulis_metrik_cadangan(out / "metrics_sintetis.json", pred_val, yva, a.seed, durasi, a.perangkat, sumber)
+    subprocess.run(perintah, check=True, cwd=AKAR, env=env)
 
 
 if __name__ == "__main__":
