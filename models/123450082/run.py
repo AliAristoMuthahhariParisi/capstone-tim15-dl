@@ -121,7 +121,7 @@ def train_autoencoder():
         "data_hash": data_hash(),
         "metrics": {
             "si_sdr_peningkatan_val": round(float(si_sdr_val), 4),
-            "akurasi_perintah_val": 0.0
+            "val_acc": 0.0  
         }
     }
     
