@@ -1,9 +1,13 @@
 {
-    "model": "Autoencoder CNN (Sprint 1)",
-    "seed": 1,
-    "data_hash": "288d1dad9a827a418a79826a69f54389",
-    "metrics": {
-        "si_sdr_peningkatan_val": -0.7646,
-        "val_acc": 0.0
-    }
+  "metrik": {
+    "si_sdr_peningkatan": -0.764638,
+    "akurasi_perintah": 0.0
+  },
+  "seed": 1,
+  "data_hash": "a565707907851999be537f7e1272a55d",
+  "perangkat": "cpu laptop",
+  "model": "ae",
+  "n_val": 40,
+  "n_test": 0,
+  "durasi_detik": 6.0
 }

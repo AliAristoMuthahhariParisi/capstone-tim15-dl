@@ -9,33 +9,37 @@ Pemakaian:
 """
 
 import os
+import sys
+import time
 import json
+from pathlib import Path
 import torch
 import torch.nn as nn
 import numpy as np
 
-# Impor protokol tim
-from src.protokol.data import muat
-from src.common.manifest import data_hash
+# TAMBAHKAN PENAMBAL SYS.PATH 
+AKAR = Path(__file__).resolve().parents[2]
+if str(AKAR) not in sys.path:
+    sys.path.insert(0, str(AKAR))
 
-# 1. TETAPKAN SEED (Syarat Kartu #16)
+# LAKUKAN IMPORT SRC
+from src.protokol.data import muat
+from src.common import manifest, split
+
+# TETAPKAN SEED
 SEED = 1
 torch.manual_seed(SEED)
 np.random.seed(SEED)
 
-# 2. DEFINISIKAN ARSITEKTUR AUTOENCODER (CNN)
+# DEFINISIKAN ARSITEKTUR AUTOENCODER (CNN)
 class DenoisingCNNAutoencoder(nn.Module):
     def __init__(self):
         super(DenoisingCNNAutoencoder, self).__init__()
-        
-        # ENCODER: Memperkecil dimensi dari 32x40
         self.encoder = nn.Sequential(
             nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2) 
         )
-        
-        # DECODER: Memperbesar kembali ke 32x40
         self.decoder = nn.Sequential(
             nn.ConvTranspose2d(in_channels=16, out_channels=1, kernel_size=2, stride=2),
         )
@@ -46,50 +50,40 @@ class DenoisingCNNAutoencoder(nn.Module):
         return x
 
 def train_autoencoder():
-    # 3. MUAT DATA PRIMER
+    t_mulai = time.time()  # Catat waktu mulai
+    
     print("Memuat data primer meja...")
     X_tr, y_tr, X_va, y_va, X_te, y_te = muat()
     
-    # Ubah ke tensor PyTorch dan sesuaikan dimensi untuk CNN (tambah dimensi Channel di index 1)
     X_train_tensor = torch.tensor(X_tr, dtype=torch.float32)
     X_train_cnn = X_train_tensor.unsqueeze(1)
-
     X_val_tensor = torch.tensor(X_va, dtype=torch.float32)
     X_val_cnn = X_val_tensor.unsqueeze(1)
 
-    # Inisialisasi Model
     model = DenoisingCNNAutoencoder()
-
-    # 4. PELATIHAN MODEL
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     criterion = nn.MSELoss()
     
     epochs = 50 
-    print(f"\nMemulai pelatihan Autoencoder dengan Seed {SEED}...")
+    print(f"\nMemulai pelatihan Autoencoder dengan Seed {SEED}")
     
     model.train() 
     for epoch in range(epochs):
         optimizer.zero_grad() 
-        
         output = model(X_train_cnn)
-        
-        # PERBAIKAN: Membandingkan output model dengan inputnya sendiri (X_train_cnn)
         loss = criterion(output, X_train_cnn)
-        
         loss.backward()
         optimizer.step()
         
         if (epoch + 1) % 10 == 0:
             print(f"Epoch [{epoch+1}/{epochs}] | Loss MSE: {loss.item():.4f}")
 
-    # 5. EVALUASI PADA DATA VALIDASI
-    print("\nMemulai evaluasi pada data validasi...")
+    print("\nMemulai evaluasi pada data validasi")
     model.eval() 
     
     with torch.no_grad():
         val_pred = model(X_val_cnn)
         
-        # Fungsi matematis SI-SDR
         def hitung_si_sdr(referensi, prediksi):
             eps = 1e-8
             alpha = np.sum(referensi * prediksi) / (np.sum(referensi**2) + eps)
@@ -99,8 +93,6 @@ def train_autoencoder():
 
         si_sdr_list = []
         pred_numpy = val_pred.squeeze().numpy() 
-        
-        # PERBAIKAN: Menggunakan X_val_tensor.numpy()
         target_numpy = X_val_tensor.numpy()
 
         for i in range(len(pred_numpy)):
@@ -111,23 +103,29 @@ def train_autoencoder():
         si_sdr_val = np.mean(si_sdr_list)
         print(f"Evaluasi Selesai! Rata-rata SI-SDR Validasi: {si_sdr_val:.4f} dB")
 
-    # 6. SIMPAN HASIL KE METRICS.JSON
-    output_dir = "results/123450082"
-    os.makedirs(output_dir, exist_ok=True)
-    
+    durasi = time.time() - t_mulai  # Hitung total durasi
+
+    # SIMPAN HASIL KE METRICS.JSON 
     hasil = {
-        "model": "Autoencoder CNN (Sprint 1)",
+        "metrik": {
+            "si_sdr_peningkatan": round(float(si_sdr_val), 6),
+            "akurasi_perintah": 0.0
+        },
         "seed": SEED,
-        "data_hash": data_hash(),
-        "metrics": {
-            "si_sdr_peningkatan_val": round(float(si_sdr_val), 4),
-            "val_acc": 0.0  
-        }
+        "data_hash": manifest.data_hash(f"split:{split.SEED_SPLIT}".encode()),
+        "perangkat": "cpu laptop",
+        "model": "ae",
+        "n_val": int(len(y_va)),
+        "n_test": 0,
+        "durasi_detik": round(durasi, 1)
     }
     
-    output_path = os.path.join(output_dir, "metrics.json")
-    with open(output_path, "w") as f:
-        json.dump(hasil, f, indent=4)
+    output_path = Path("results/123450082/metrics.json")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(hasil, f, indent=2, ensure_ascii=False)
+        f.write("\n")
         
     print(f"\nSelesai! Hasil metrik validasi berhasil dicatat di: {output_path}")
 
