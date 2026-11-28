@@ -1,0 +1,38 @@
+PERIKSA ARTEFAK — 123450088 (jalur RNN, Tim 15)
+Dijalankan 28 Nov 2026 15:24 pada commit 35b3959 (branch bukti/sprint1-ali)
+
+Berkas yang diperiksa : results/123450088/metrics.json
+Skema wajib           : metrik, seed, data_hash
+
+  metrik    : ADA
+  seed      : ADA
+  data_hash : ADA
+
+Isi metrik:
+  val_acc      : 0.125
+  val_macro_f1 : 0.087273
+  n_val        : 40
+  seed         : 1
+
+Kecocokan data_hash dengan MANIFEST
+  berkas MANIFEST   : data/aktuator.csv, data/audio_index.csv, data/daya.csv, data/digital.csv, data/imu.csv, data/label.csv, data/lingkungan.csv
+  parameter split   : split:2026
+  data_hash segar   : a565707907851999be537f7e1272a55d
+  data_hash metrics : a565707907851999be537f7e1272a55d
+  hasil             : COCOK
+
+Berkas hasil tidak disunting tangan
+  git status --porcelain results/123450088/metrics.json : (kosong)
+  arti : identik dengan commit terakhir
+
+Catatan data_hash pada dokumentasi
+  data/CATATAN-SESI.md mencantumkan 288d1dad9a827a418a79826a69f54389.
+  Nilai itu data_hash tanpa parameter split; nilai yang dipakai penilai dan seluruh
+  metrics.json adalah a565707907851999be537f7e1272a55d (data_hash + split:2026). Keduanya dihitung
+  dari tujuh berkas data yang sama.
+
+Cara memeriksa ulang (dari root repo):
+  python -c "from src.common import manifest, split; import json;
+  m=json.load(open('results/123450088/metrics.json'));
+  print('metrics :', m['data_hash']);
+  print('segar   :', manifest.data_hash(('split:'+str(split.SEED_SPLIT)).encode()))"
