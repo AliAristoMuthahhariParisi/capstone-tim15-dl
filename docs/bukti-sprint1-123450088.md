@@ -36,11 +36,28 @@ berhenti bila dimensi tidak sesuai.
 (`Linear(64,1)` + Sigmoid) yang mengalikan state tersembunyi, lalu rata-rata waktu dan
 klasifikasi 10 kelas dengan dropout 0,3. Total 27.851 parameter.
 
-**Catatan jujur soal "perintah simulasi".** Perintah di atas sekarang memakai **data sesi
-asli** (`sumber data: sesi asli: data`), bukan mode simulasi, karena `src/protokol/data.py`
-memilih folder sesi lebih dulu bila ada. Mode simulasi hanya aktif bila sesi belum tersedia.
-Hasil run simulasi sebelumnya tetap tersimpan di `results/123450088/metrics_sintetis.json`
-(val_acc 0,70) dan tidak ditimpa.
+### Run mode simulasi (30 epoch)
+
+Log: `results/123450088/log-simulasi-30ep.txt`
+
+```
+sumber data : jadwal simulasi: tim-15-2026-11-12
+masukan     : latih (160, 32, 40), validasi (40, 32, 40)
+model       : RNN LSTM atas baris frame (27,851 parameter, 10 kelas)
+  epoch  1/30  loss=2.3140  val_acc=0.1000
+  epoch 10/30  loss=2.2589  val_acc=0.2500
+  epoch 20/30  loss=1.8439  val_acc=0.4250
+  epoch 30/30  loss=1.2620  val_acc=0.7000
+{"val_acc": 0.7, "val_macro_f1": 0.661378} → results/123450088/metrics_sintetis.json
+```
+
+Hasilnya **identik** dengan artefak yang sudah tersimpan di repo (`metrics_sintetis.json`,
+commit `946ec2a`: `acc 0.7`, `macro_f1 0.661378`), jadi run dapat direproduksi.
+
+Cara menjalankan: pada salinan repo tanpa folder data sesi, dengan `data/MANIFEST.json`
+sementara yang menunjuk `sesi-simulasi/tim-15-2026-11-12/jadwal.csv` agar penilai dapat
+menghitung `data_hash`. Pada working tree yang sudah berisi data sesi, perintah yang sama
+memilih data primer — log versi itu ada di `results/123450088/log-run-seed1.txt`.
 
 ---
 

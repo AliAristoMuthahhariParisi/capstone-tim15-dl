@@ -1,0 +1,8 @@
+sumber data : jadwal simulasi: tim-15-2026-11-12
+masukan     : latih (160, 32, 40), validasi (40, 32, 40)
+model       : RNN LSTM atas baris frame (27,851 parameter, 10 kelas)
+  epoch  1/30  loss=2.3140  val_acc=0.1000
+  epoch 10/30  loss=2.2589  val_acc=0.2500
+  epoch 20/30  loss=1.8439  val_acc=0.4250
+  epoch 30/30  loss=1.2620  val_acc=0.7000
+{"val_acc": 0.7, "val_macro_f1": 0.661378} → results\123450088\metrics_sintetis.json
